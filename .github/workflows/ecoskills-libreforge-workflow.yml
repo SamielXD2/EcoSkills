@@ -1,0 +1,143 @@
+name: Build and Release EcoSkills
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - master
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout EcoSkills
+      uses: actions/checkout@v4
+      with:
+        path: EcoSkills
+      
+    - name: Checkout LibreForge
+      uses: actions/checkout@v4
+      with:
+        repository: Auxilor/libreforge
+        path: libreforge
+        
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: 'gradle'
+    
+    - name: Cache Gradle packages
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+    
+    - name: Build LibreForge
+      working-directory: ./libreforge
+      run: |
+        chmod +x gradlew
+        ./gradlew clean build publishToMavenLocal -x test
+        
+    - name: Build EcoSkills
+      working-directory: ./EcoSkills
+      run: |
+        chmod +x gradlew
+        ./gradlew clean build shadowJar --stacktrace
+      
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: EcoSkills-JAR
+        path: EcoSkills/build/libs/*-all.jar
+        retention-days: 30
+
+  release:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    permissions:
+      contents: write
+      
+    steps:
+    - name: Checkout EcoSkills
+      uses: actions/checkout@v4
+      with:
+        path: EcoSkills
+      
+    - name: Checkout LibreForge
+      uses: actions/checkout@v4
+      with:
+        repository: Auxilor/libreforge
+        path: libreforge
+        
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: 'gradle'
+    
+    - name: Cache Gradle packages
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+    
+    - name: Build LibreForge
+      working-directory: ./libreforge
+      run: |
+        chmod +x gradlew
+        ./gradlew clean build publishToMavenLocal -x test
+        
+    - name: Build EcoSkills
+      working-directory: ./EcoSkills
+      run: |
+        chmod +x gradlew
+        ./gradlew clean build shadowJar --stacktrace
+      
+    - name: Get version from tag
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: EcoSkills/build/libs/*-all.jar
+        generate_release_notes: true
+        draft: false
+        prerelease: false
+        name: EcoSkills ${{ steps.get_version.outputs.VERSION }}
+        body: |
+          ## EcoSkills ${{ steps.get_version.outputs.VERSION }}
+          
+          Built with LibreForge framework.
+          
+          ### Installation
+          1. Download the JAR file below
+          2. Place in your server's `plugins/` folder
+          3. Restart your server
+          
+          ### Requirements
+          - Paper/Purpur 1.21+
+          - Java 21+
+          - LibreForge (bundled)
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
