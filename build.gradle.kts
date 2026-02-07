@@ -59,6 +59,7 @@ allprojects {
         shadowJar {
             relocate("com.willfp.libreforge.loader", "com.willfp.ecoskills.libreforge.loader")
             relocate("com.willfp.ecomponent", "com.willfp.ecoskills.ecomponent")
+relocate("com.willfp.libreforge", "com.willfp.ecoskills.libreforge")
         }
 
         compileKotlin {
